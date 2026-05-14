@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OBJ Walkable Area Viewer (Recast/Detour)</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.160.0",
+    "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+    "recast-navigation": "https://esm.sh/recast-navigation@0.43.1",
+    "recast-navigation/generators": "https://esm.sh/recast-navigation@0.43.1/generators"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>OBJ Nav Viewer</h2>
+  <div class="muted small">classification + pathfinding via <a href="https://github.com/isaac-mason/recast-navigation-js" target="_blank" rel="noopener">recast-navigation-js</a> (the recastnavigation C++ project, compiled to wasm).</div>
+
+  <section>
+    <label class="btn">
+      Load .obj
+      <input type="file" id="fileInput" accept=".obj" hidden>
+    </label>
+    <div id="filename" class="muted">no file loaded</div>
+  </section>
+
+  <section>
+    <h3>Recast config</h3>
+    <label>Cell size (cs, world units): <span id="csVal">0.30</span></label>
+    <input type="range" id="cs" min="0.05" max="1.0" step="0.05" value="0.30">
+
+    <label>Max slope (deg): <span id="slopeVal">45</span></label>
+    <input type="range" id="walkableSlopeAngle" min="5" max="80" step="1" value="45">
+
+    <label>Walkable height (voxels): <span id="whVal">10</span></label>
+    <input type="range" id="walkableHeight" min="2" max="30" step="1" value="10">
+
+    <label>Walkable climb (voxels): <span id="wcVal">4</span></label>
+    <input type="range" id="walkableClimb" min="0" max="20" step="1" value="4">
+
+    <label>Walkable radius (voxels): <span id="wrVal">2</span></label>
+    <input type="range" id="walkableRadius" min="0" max="10" step="1" value="2">
+
+    <button id="rebuildBtn">Build navmesh</button>
+  </section>
+
+  <section>
+    <h3>Path tool</h3>
+    <div class="mode-row">
+      <button id="modeStart" class="mode">Set Start</button>
+      <button id="modeEnd"   class="mode">Set End</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+    <div id="status" class="muted">load a .obj to begin</div>
+  </section>
+
+  <section>
+    <h3>Display</h3>
+    <label><input type="checkbox" id="showOriginal" checked> show non-walkable mesh (blue)</label>
+    <label><input type="checkbox" id="showWalkable" checked> show walkable (white)</label>
+    <label><input type="checkbox" id="showStairs"   checked> show stairs (red)</label>
+    <label><input type="checkbox" id="showEdges"> show wireframe</label>
+  </section>
+
+  <section>
+    <h3>Stats</h3>
+    <div id="stats" class="muted">&mdash;</div>
+  </section>
+
+  <section class="muted small">
+    <p><b>How to use:</b></p>
+    <ol>
+      <li>Load a .obj file.</li>
+      <li>Tune Recast settings, click <em>Build navmesh</em>.</li>
+      <li><em>Set Start</em>, then click any white/red surface.</li>
+      <li><em>Set End</em>, then click another point &mdash; Detour&#39;s findStraightPath draws the corridor automatically.</li>
+    </ol>
+    <p>Try the meshes in <code>researching/recastnavigation/RecastDemo/Bin/Meshes/</code> (<code>nav_test.obj</code>, <code>dungeon.obj</code>).</p>
+  </section>
+</div>
+
+<div id="canvasWrap">
+  <canvas id="view"></canvas>
+  <div id="cursorHint"></div>
+  <div id="bootMessage">Loading Recast WebAssembly&hellip;</div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

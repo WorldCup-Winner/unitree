@@ -17,6 +17,7 @@ const slopeSlider = $('walkableSlopeAngle');
 const whSlider    = $('walkableHeight');
 const wcSlider    = $('walkableClimb');
 const wrSlider    = $('walkableRadius');
+const fixWindingCb = $('fixWinding');
 const csVal       = $('csVal');
 const slopeVal    = $('slopeVal');
 const whVal       = $('whVal');
@@ -108,9 +109,36 @@ function rebuild() {
     walkableRadius:     parseInt(wrSlider.value, 10),
   };
 
-  setStatus('building navmesh via recast wasm...');
+  // Optional pre-pass: flip triangles whose face normal points down. This is
+  // a workaround for OBJs with mixed quad winding — Recast's slope test is
+  // signed (norm.y > cos(slope)), so downward-facing copies of a flat floor
+  // never pass and you see "half a corridor" missing along a diagonal.
+  let triData = state.mesh.tris;
+  let flipped = 0;
+  if (fixWindingCb.checked) {
+    const slopeCos = Math.cos(cfg.walkableSlopeAngle * Math.PI / 180);
+    const v = state.mesh.verts;
+    const t = state.mesh.tris.slice();   // don't mutate the cached parse
+    for (let i = 0; i < t.length; i += 3) {
+      const a = t[i] * 3, b = t[i + 1] * 3, c = t[i + 2] * 3;
+      const ex = v[b] - v[a],     ey = v[b + 1] - v[a + 1], ez = v[b + 2] - v[a + 2];
+      const fx = v[c] - v[a],     fy = v[c + 1] - v[a + 1], fz = v[c + 2] - v[a + 2];
+      // y-component of (e × f)
+      const ny = ez * fx - ex * fz;
+      const nl = Math.hypot(ey * fz - ez * fy, ny, ex * fy - ey * fx) || 1;
+      if (ny / nl < -slopeCos) {
+        const tmp = t[i + 1]; t[i + 1] = t[i + 2]; t[i + 2] = tmp;
+        flipped++;
+      }
+    }
+    triData = t;
+  }
+
+  setStatus(flipped
+    ? `building navmesh (${flipped} downward tri(s) flipped)...`
+    : 'building navmesh via recast wasm...');
   const t0 = performance.now();
-  const result = buildNavData(state.mesh.verts, state.mesh.tris, cfg);
+  const result = buildNavData(state.mesh.verts, triData, cfg);
   const ms = performance.now() - t0;
 
   if (!result.success) {
@@ -120,7 +148,7 @@ function rebuild() {
   }
   state.nav = result;
 
-  viewer.rebuild(state.mesh.verts, state.mesh.tris, result.areas);
+  viewer.rebuild(state.mesh.verts, triData, result.areas);
   applyVisibility();
   if (showEdges.checked) viewer.setWireframe(true);
 
@@ -160,6 +188,7 @@ for (const [slider, label, fmt] of sliderPairs) {
   slider.addEventListener('input', () => { label.textContent = fmt(slider.value); });
 }
 rebuildBtn.addEventListener('click', rebuild);
+fixWindingCb.addEventListener('change', () => { if (state.mesh) rebuild(); });
 
 for (const cb of [showOriginal, showWalkable, showStairs]) cb.addEventListener('change', applyVisibility);
 showEdges.addEventListener('change', () => viewer.setWireframe(showEdges.checked));

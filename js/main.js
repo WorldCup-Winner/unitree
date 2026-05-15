@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { parseObj } from './objParser.js';
+import { dedupeOverlaps } from './meshClean.js';
 import {
   ensureRecastReady,
   buildNavData,
@@ -18,6 +19,7 @@ const whSlider    = $('walkableHeight');
 const wcSlider    = $('walkableClimb');
 const wrSlider    = $('walkableRadius');
 const fixWindingCb = $('fixWinding');
+const dedupeCb     = $('dedupeOverlaps');
 const csVal       = $('csVal');
 const slopeVal    = $('slopeVal');
 const whVal       = $('whVal');
@@ -109,16 +111,26 @@ function rebuild() {
     walkableRadius:     parseInt(wrSlider.value, 10),
   };
 
-  // Optional pre-pass: flip triangles whose face normal points down. This is
-  // a workaround for OBJs with mixed quad winding — Recast's slope test is
-  // signed (norm.y > cos(slope)), so downward-facing copies of a flat floor
-  // never pass and you see "half a corridor" missing along a diagonal.
   let triData = state.mesh.tris;
+
+  // Optional pre-pass A: remove overlapping coplanar triangles (BIM exports
+  // often stack floor slabs / decals at the same Y, which makes Recast emit
+  // 2 voxel spans per column that rcFilterLedgeSpans then treats as a ledge).
+  let dedupedCount = 0;
+  if (dedupeCb.checked) {
+    const r = dedupeOverlaps(state.mesh.verts, triData);
+    triData = r.indices;
+    dedupedCount = r.removed;
+  }
+
+  // Optional pre-pass B: flip triangles whose face normal points down. Recast's
+  // slope test is signed (norm.y > cos(slope)), so downward-facing copies of a
+  // flat floor never pass and you see "half a corridor" missing along a diagonal.
   let flipped = 0;
   if (fixWindingCb.checked) {
     const slopeCos = Math.cos(cfg.walkableSlopeAngle * Math.PI / 180);
     const v = state.mesh.verts;
-    const t = state.mesh.tris.slice();   // don't mutate the cached parse
+    const t = new Uint32Array(triData); // don't mutate the deduped/cached array
     for (let i = 0; i < t.length; i += 3) {
       const a = t[i] * 3, b = t[i + 1] * 3, c = t[i + 2] * 3;
       const ex = v[b] - v[a],     ey = v[b + 1] - v[a + 1], ez = v[b + 2] - v[a + 2];
@@ -134,8 +146,11 @@ function rebuild() {
     triData = t;
   }
 
-  setStatus(flipped
-    ? `building navmesh (${flipped} downward tri(s) flipped)...`
+  const prep = [];
+  if (dedupedCount) prep.push(`${dedupedCount} overlapping tri(s) removed`);
+  if (flipped)      prep.push(`${flipped} downward tri(s) flipped`);
+  setStatus(prep.length
+    ? `building navmesh (${prep.join(', ')})...`
     : 'building navmesh via recast wasm...');
   const t0 = performance.now();
   const result = buildNavData(state.mesh.verts, triData, cfg);
@@ -189,6 +204,7 @@ for (const [slider, label, fmt] of sliderPairs) {
 }
 rebuildBtn.addEventListener('click', rebuild);
 fixWindingCb.addEventListener('change', () => { if (state.mesh) rebuild(); });
+dedupeCb.addEventListener('change', () => { if (state.mesh) rebuild(); });
 
 for (const cb of [showOriginal, showWalkable, showStairs]) cb.addEventListener('change', applyVisibility);
 showEdges.addEventListener('change', () => viewer.setWireframe(showEdges.checked));

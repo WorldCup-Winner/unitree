@@ -46,8 +46,11 @@
     <label>Walkable radius (voxels): <span id="wrVal">2</span></label>
     <input type="range" id="walkableRadius" min="0" max="10" step="1" value="2">
 
+    <label><input type="checkbox" id="dedupeOverlaps" checked> Dedupe overlapping coplanar triangles</label>
+    <div class="muted small">Removes exact-duplicate triangles, and small triangles fully contained in larger coplanar ones. Common in BIM / Revit / SketchUp exports. Does not handle arbitrary partial overlaps &mdash; fix those in Blender first.</div>
+
     <label><input type="checkbox" id="fixWinding"> Fix downward-facing winding</label>
-    <div class="muted small">Flips triangles whose normal points down (n.y &lt; &minus;cos(slope)). Use when half a flat floor is missing along a diagonal &mdash; classic exporter winding bug.</div>
+    <div class="muted small">Niche: flips triangles whose normal points down. Only use if a floor is missing along a quad diagonal due to an exporter winding bug.</div>
 
     <button id="rebuildBtn">Build navmesh</button>
   </section>
